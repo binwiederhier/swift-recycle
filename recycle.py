@@ -1,74 +1,23 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# The recycle middleware implements a mark-for-deletion mechanism for accounts and objects
-# as a general safety mechanism for the storage layer.
+#    http://www.apache.org/licenses/LICENSE-2.0
 #
-# Accounts
-# --------
-# Accounts can be marked for deletion by sending POST request with a metadata header
-# "X-Account-Meta-Recycled: yes". After they are marked, GET requests will return a "404 Not Found" error.
-# A proper DELETE request can only be issued after 'account_recycled_seconds' have passed.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 #
-# Examples:
-# 1. DELETEing an account directly will fail. Instead, we have to mark for deletion
-#    first via POST and then DELETE after 'account_recycled_seconds' has passed.
-#
-#   $ curl -v -X POST -H "X-Account-Meta-Recycled: yes" http://1.2.3.4:8080/v1/AUTH_admin
-#   $ curl -v http://1.2.3.4:8080/v1/AUTH_admin
-#    < HTTP/1.1 404 Not Found
-#    < X-Account-Meta-Recycled: yes
-#    < X-Account-Meta-Earliest-Delete-Date: 1570208735
-#    ...
-#    Account is marked for deletion. Send X-Remove-Account-Meta-Recycled header via POST to undelete.
-#
-#   Wait 'account_recycled_seconds' . . .
-#
-#   $ curl -v -X DELETE http://1.2.3.4:8080/v1/AUTH_admin
-#
-# 2. Undeleting an account:
-#   $ curl -v -X POST -H "X-Remove-Account-Meta-Recycled: x" http://1.2.3.4:8080/v1/AUTH_admin
-#   $ curl -v http://1.2.3.4:8080/v1/AUTH_admin
-#    < HTTP/1.1 200 OK
-#    ...
-#
-# Containers
-# ----------
-# There is no special logic for containers, because they cannot be deleted anyway
-# unless they are empty (no objects).
-#
-# Objects
-# -------
-# Objects can be marked for deletion by sending POST request with a metadata header
-# "X-Object-Meta-Recycled: yes". After they are marked, GET requests will return a "404 Not Found" error.
-#
-# The POST request will internally set the "X-Delete-After" header to 'object_recycled_seconds'
-# and it will delete the object AUTOMATICALLY after that time.
-#
-#     Please note: This is DIFFERENT from the account behavior.
-#                  No additional DELETE request is necessary!
-#
-# 1. Marking an object for deletion via POST. They will expire automatically after 'object_recycled_seconds':
-#
-#   $ curl -v -X POST -H "X-Object-Meta-Recycled: yes" http://1.2.3.4:8080/v1/AUTH_admin/mycontainer/myobject
-#   $ curl -v http://1.2.3.4:8080/v1/AUTH_admin/mycontainer/myobject
-#    < HTTP/1.1 404 Not Found
-#    < X-Object-Meta-Recycled: yes
-#    < X-Object-Meta-Delete-Date: 1570631037
-#    ...
-#    Object is marked for deletion. Send X-Remove-Object-Meta-Recycled header via POST to undelete.
-#
-#   Wait 'object_min_recycled_seconds' . . .
-#
-#   $ curl -v -X GET http://1.2.3.4:8080/v1/AUTH_admin/mycontainer/myobject
-#    < HTTP/1.1 404 Not Found
-#    ...
-# 4. Undeleting an object:
-#   $ curl -v -X POST -H "X-Remove-Object-Meta-Recycled: x" http://1.2.3.4:8080/v1/AUTH_admin/mycontainer/myobject
-#   $ curl -v http://1.2.3.4:8080/v1/AUTH_admin/mycontainer/myobject
-#    < HTTP/1.1 200 OK
-#    ...
-#
-# @author Philipp Heckel <philipp.heckel@gmail.com>
-#
+
+"""swift-recycle
+
+Proxy middleware for OpenStack Swift to protect accounts and objects from getting deleted maliciously/accidentally.
+Detailed instructions: https://github.com/binwiederhier/swift-recycle
+
+"""
 
 from swift.common import swob
 from swift.proxy.controllers.base import get_account_info, get_object_info
